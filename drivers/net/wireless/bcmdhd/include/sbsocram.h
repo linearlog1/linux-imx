@@ -21,7 +21,10 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: sbsocram.h 481592 2014-05-29 22:10:51Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: sbsocram.h 514727 2014-11-12 03:02:48Z $
  */
 
 #ifndef	_SBSOCRAM_H
@@ -119,6 +122,8 @@ typedef volatile struct sbsocramregs {
 #define	SRCI_SRNB_SHIFT		4
 #define	SRCI_SRBSZ_MASK		0xf
 #define	SRCI_SRBSZ_SHIFT	0
+
+#define	SRCI_SRNB_MASK_EXT	0x100
 
 #define SR_BSZ_BASE		14
 

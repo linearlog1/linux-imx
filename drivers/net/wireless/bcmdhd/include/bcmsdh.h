@@ -23,7 +23,10 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh.h 662739 2016-11-08 09:20:31Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmsdh.h 514727 2014-11-12 03:02:48Z $
  */
 
 /**
@@ -37,10 +40,11 @@
 #define BCMSDH_INFO_VAL		0x0002 /* Info */
 extern const uint bcmsdh_msglevel;
 
-#define BCMSDH_ERROR(x)
+#define BCMSDH_ERROR(x) printf x
 #define BCMSDH_INFO(x)
 
-#if (defined(BCMSDIOH_STD) || defined(BCMSDIOH_BCM) || defined(BCMSDIOH_SPI))
+#if defined(BCMSDIO) && (defined(BCMSDIOH_STD) || defined(BCMSDIOH_BCM) || \
+	defined(BCMSDIOH_SPI))
 #define BCMSDH_ADAPTER
 #endif /* BCMSDIO && (BCMSDIOH_STD || BCMSDIOH_BCM || BCMSDIOH_SPI) */
 

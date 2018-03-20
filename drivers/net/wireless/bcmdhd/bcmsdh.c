@@ -22,7 +22,10 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh.c 455573 2014-02-14 17:49:31Z $
+ *
+ * <<Broadcom-WL-IPTag/Open:>>
+ *
+ * $Id: bcmsdh.c 514727 2014-11-12 03:02:48Z $
  */
 
 /**
@@ -51,7 +54,7 @@ const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
 bcmsdh_info_t * l_bcmsdh = NULL;
 
 
-#if defined(OOB_INTR_ONLY) && defined(HW_OOB)
+#if defined(OOB_INTR_ONLY) && defined(HW_OOB) || defined(FORCE_WOWLAN)
 extern int
 sdioh_enable_hw_oob_intr(void *sdioh, bool enable);
 
@@ -389,15 +392,17 @@ bcmsdh_reg_read(void *sdh, uint32 addr, uint size)
 	SDIOH_API_RC status;
 	uint32 word = 0;
 
-	BCMSDH_INFO(("%s:fun = 1, addr = 0x%x, ", __FUNCTION__, addr));
+	BCMSDH_INFO(("%s:fun = 1, addr = 0x%x\n", __FUNCTION__, addr));
 
 	if (!bcmsdh)
 		bcmsdh = l_bcmsdh;
 
 	ASSERT(bcmsdh->init_success);
 
-	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE))
+	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE)) {
+		bcmsdh->regfail = TRUE; // terence 20130621: prevent dhd_dpc in dead lock
 		return 0xFFFFFFFF;
+	}
 
 	addr &= SBSDIO_SB_OFT_ADDR_MASK;
 	if (size == 4)
@@ -445,8 +450,10 @@ bcmsdh_reg_write(void *sdh, uint32 addr, uint size, uint32 data)
 
 	ASSERT(bcmsdh->init_success);
 
-	if ((err = bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE)))
+	if ((err = bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE))) {
+		bcmsdh->regfail = TRUE; // terence 20130621:
 		return err;
+	}
 
 	addr &= SBSDIO_SB_OFT_ADDR_MASK;
 	if (size == 4)
@@ -702,4 +709,11 @@ bcmsdh_gpioout(void *sdh, uint32 gpio, bool enab)
 	sdioh_info_t *sd = (sdioh_info_t *)(p->sdioh);
 
 	return sdioh_gpioout(sd, gpio, enab);
+}
+
+uint
+bcmsdh_set_mode(void *sdh, uint mode) 
+{
+	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)sdh;
+	return (sdioh_set_mode(bcmsdh->sdioh, mode));
 }
