@@ -150,8 +150,8 @@ CONFIG_USB_USBNET=y
 CONFIG_USB_NET_CDC_EEM=m
 CONFIG_BCMDHD=y
 CONFIG_BCMDHD_SDIO=y
-CONFIG_BCMDHD_FW_PATH="/lib/firmware/bcm/fw_bcm43438a0.bin"
-CONFIG_BCMDHD_NVRAM_PATH="/lib/firmware/bcm/nvram_ap6212.txt"
+CONFIG_BCMDHD_FW_PATH="/lib/firmware/bcm/fw_bcm43436b0.bin"
+CONFIG_BCMDHD_NVRAM_PATH="/lib/firmware/bcm/nvram_ap6236.txt"
 CONFIG_BCMDHD_SDIO_IRQ=y
 # CONFIG_RTL_CARDS is not set
 # CONFIG_INPUT_MOUSEDEV_PSAUX is not set
