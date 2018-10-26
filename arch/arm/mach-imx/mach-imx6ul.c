@@ -16,10 +16,79 @@
 #include <linux/regmap.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
+#include <asm/system_misc.h>
+#include <linux/of_gpio.h>
+
 
 #include "common.h"
 #include "cpuidle.h"
 #include "hardware.h"
+
+	#define BT_WAKE IMX_GPIO_NR(4, 17)   /* BT_WAKE */
+	#define BT_RESET_N IMX_GPIO_NR(1, 9) /* BT_RST# */
+	#define WLAN_REG_EN IMX_GPIO_NR(1, 5) /* WL_REG_ON */
+    #define UART_EN1 IMX_GPIO_NR(2, 12) /* UART_EN1*/
+    #define UART_EN2 IMX_GPIO_NR(2, 13) /* UART_EN2*/ 
+	#define ENET_RST IMX_GPIO_NR(1, 3) /*ENET_RST#*/
+
+static inline void DMS_SE25_init(void){
+	/*AP6255 Bluetooth power sequece*/
+
+  
+	pr_warn(">>>>> %s, %s: +%d()++\n", __FILE__, __FUNCTION__, __LINE__);
+	/*
+	struct device_node *np = NULL;
+	np = of_find_node_by_name(NULL, "pin_enable_ctrl");
+	if (!np)
+		return;
+	dmssr09_pin_enable(np, "en-io-gpio");
+	dmssr09_pin_enable(np, "en-3v3-gpio");
+	*/
+
+	//WLAN_REG_EN
+	//printk(">>>>> set gpio : WLAN_REG_EN => 0 \n");
+	pr_info(">>>>> set gpio : WLAN_REG_EN[%d]=> 1 \n",WLAN_REG_EN);
+	gpio_request(WLAN_REG_EN, "WLAN REG EN");
+	gpio_direction_output(WLAN_REG_EN, 0);
+	msleep(1);
+	//printk(">>>>> set gpio : WLAN_REG_EN => 1 \n");
+	gpio_direction_output(WLAN_REG_EN, 1);
+	gpio_free(WLAN_REG_EN);
+
+	//BT_WAKE to Low
+    pr_info(">>>>> set gpio : BT_WAKE[%d]=> 1 \n",BT_WAKE);
+	gpio_request(BT_WAKE, "BT WAKE");
+	gpio_direction_output(BT_WAKE, 1);
+
+	//BT_RESET_N
+    pr_info(">>>>> set gpio : BT_RESET_N[%d]=> 1 \n",BT_RESET_N);
+	gpio_request(BT_RESET_N, "BT RESET N");
+	gpio_direction_output(BT_RESET_N, 0);
+	msleep(5);
+    //printk(">>>>> set gpio : BT_RESET_N => 1 \n");
+	gpio_direction_output(BT_RESET_N, 1);	
+
+	//ENET_Rest_N
+    pr_info(">>>>> set gpio : ENET_RST[%d]=> 1 \n",ENET_RST);
+	gpio_request(ENET_RST, "ENET Rest N");
+	gpio_direction_output(ENET_RST, 0);
+	msleep(5);
+    gpio_direction_output(ENET_RST, 1);
+
+    //UART_EN1 to High
+    pr_info(">>>>> set gpio : UART_EN1[%d]=> 0 \n",UART_EN1);
+	gpio_request(UART_EN1, "UART EN1");
+	gpio_direction_output(UART_EN1, 1);		
+	gpio_free(UART_EN1);
+
+    //UART_EN2 to High
+    pr_info(">>>>> set gpio : UART_EN2[%d]=> 0 \n",UART_EN2);
+	gpio_request(UART_EN2, "UART EN2");
+	gpio_direction_output(UART_EN2, 1);	
+	gpio_free(UART_EN2);	
+
+    pr_warn(">>>>> %s, %s: +%d()--\n", __FILE__, __FUNCTION__, __LINE__);
+}
 
 static void __init imx6ul_enet_clk_init(void)
 {
@@ -167,6 +236,8 @@ static inline void imx6ul_enet_init(void)
 		imx6_enet_mac_init("fsl,imx6ul-fec", "fsl,imx6ull-ocotp");
 }
 
+
+
 static void __init imx6ul_init_machine(void)
 {
 	struct device *parent;
@@ -179,6 +250,9 @@ static void __init imx6ul_init_machine(void)
 	imx6ul_enet_init();
 	imx_anatop_init();
 	imx6ul_pm_init();
+
+	
+
 }
 
 static void __init imx6ul_init_irq(void)
@@ -198,6 +272,7 @@ static void __init imx6ul_init_late(void)
 	}
 
 	imx6ul_cpuidle_init();
+	DMS_SE25_init();
 }
 
 static void __init imx6ul_map_io(void)

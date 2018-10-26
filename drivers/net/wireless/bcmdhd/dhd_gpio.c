@@ -244,7 +244,7 @@ int dhd_wlan_init_gpio(void)
 	/* Please check your schematic and fill right GPIO number which connected to
 	* WL_REG_ON and WL_HOST_WAKE.
 	*/
-	gpio_wl_reg_on = -1;
+	gpio_wl_reg_on = 5; /* MX6UL_PAD_GPIO1_IO05__GPIO1_IO05 WL_REG_ON pull_up_100M  */
 #ifdef CUSTOMER_OOB
 	gpio_wl_host_wake = -1;
 #endif
