@@ -202,12 +202,14 @@ regulators {
 		MX6UL_PAD_UART1_CTS_B__GPIO1_IO18 0x1b0b1     /* GPO_WIFI_LED_O 18 pull_up_100M*/
 		MX6UL_PAD_UART3_TX_DATA__GPIO1_IO24   0x1b0b1 /* GPO_com_led1*/
 		MX6UL_PAD_UART3_RX_DATA__GPIO1_IO25   0x1b0b1 /* GPO_com_led2*/
-		MX6UL_PAD_UART3_RTS_B__GPIO1_IO27     0x1b0b1 /* GPO_com_led3*/
-		MX6UL_PAD_UART3_CTS_B__GPIO1_IO26     0x1b0b1 /* GPO_com_led4*/
+		MX6UL_PAD_UART3_CTS_B__GPIO1_IO26     0x1b0b1 /* GPO_com_led3*/
+		MX6UL_PAD_UART3_RTS_B__GPIO1_IO27     0x1b0b1 /* GPO_com_led4*/	
 		MX6UL_PAD_UART4_TX_DATA__GPIO1_IO28   0x1b0b1 /* GPO_com_led5*/
 		MX6UL_PAD_UART4_RX_DATA__GPIO1_IO29   0x1b0b1 /* GPO_com_led5*/
 		MX6UL_PAD_UART5_TX_DATA__GPIO1_IO30   0x1b0b1 /* GPO_com_led7*/
 		MX6UL_PAD_UART5_RX_DATA__GPIO1_IO31   0x1b0b1 /* GPO_com_led8*/
+		MX6UL_PAD_CSI_DATA03__GPIO4_IO24      0x1b0b1 /* GPIO_ENET_LED#*/
+		MX6UL_PAD_GPIO1_IO08__GPIO1_IO08      0x1b0b1 /* GPO_FIND_LED*/
 		>;
 	};
 
@@ -583,17 +585,17 @@ regulators {
 			default-state = "on";
 		};
 
-        com_led3 {
+       com_led3 {
 			label = "com_led3";
-			gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 26 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 
         com_led4 {
 			label = "com_led4";
-			gpios = <&gpio1 26 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio1 27 GPIO_ACTIVE_LOW>;
 			default-state = "on";
-		};
+		};    
 
         com_led5 {
 			label = "com_led5";
@@ -627,6 +629,18 @@ regulators {
         wifi_led_o {
 			label = "wifi_led_o";
 			gpios = <&gpio1 18 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		enet_led_o {
+			label = "enet_led_o";
+			gpios = <&gpio4 24 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		 find_led_o {
+			label = "find_led_o";
+			gpios = <&gpio1 8 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 
