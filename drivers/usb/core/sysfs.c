@@ -15,6 +15,7 @@
 #include <linux/usb.h>
 #include <linux/usb/quirks.h>
 #include "usb.h"
+#include <uapi/linux/usb/ch11.h>
 
 /* Active configuration fields */
 #define usb_actconfig_show(field, format_string)			\
@@ -756,6 +757,28 @@ static ssize_t remove_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_IGNORE_LOCKDEP(remove, S_IWUSR, NULL, remove_store);
 
+static ssize_t usbhub_testmode_store(struct device *dev,
+               struct device_attribute *attr,
+               const char *buf, size_t count)
+{
+       int port, testmode;
+       struct usb_device *udev = to_usb_device(dev);
+
+       sscanf(buf, "%d %d\n", &port, &testmode);
+        printk(KERN_ERR "[Advantech]%s ,port:%d testmode:%d %d\n",  __func__, port, testmode, udev->portnum);
+
+       usb_control_msg(udev, usb_sndctrlpipe(udev, 0), USB_REQ_SET_FEATURE,
+                       USB_RT_PORT, USB_PORT_FEAT_SUSPEND,
+                       port, NULL, 0, 1000);
+       usb_control_msg(udev, usb_sndctrlpipe(udev, 0), USB_REQ_SET_FEATURE,
+                       USB_RT_PORT, USB_PORT_FEAT_TEST,
+                       (testmode << 8) | port, NULL, 0, 1000);
+
+			 return count;
+}
+
+static DEVICE_ATTR(hub_test, 0200, NULL, usbhub_testmode_store);
+
 
 static struct attribute *dev_attrs[] = {
 	/* current configuration's attributes */
@@ -786,6 +809,7 @@ static struct attribute *dev_attrs[] = {
 	&dev_attr_remove.attr,
 	&dev_attr_removable.attr,
 	&dev_attr_ltm_capable.attr,
+	&dev_attr_hub_test.attr,
 	NULL,
 };
 static struct attribute_group dev_attr_grp = {
