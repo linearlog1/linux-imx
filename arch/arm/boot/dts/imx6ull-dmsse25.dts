@@ -192,7 +192,8 @@ regulators {
 		    MX6UL_PAD_CSI_MCLK__GPIO4_IO17     0x1b0b1    /* BT_WAKE 113 pull_up_100M*/
 		    MX6UL_PAD_GPIO1_IO09__GPIO1_IO09   0x1b0b1    /* BT_RST# 9 pull_up_100M*/
 		    MX6UL_PAD_GPIO1_IO05__GPIO1_IO05   0x1b0b1    /* WL_REG_ON pull_up_100M*/
-			MX6UL_PAD_GPIO1_IO03__GPIO1_IO03   0x128b1    /* ENET_RST#  Open_Drain_Enabled*/
+		  	MX6UL_PAD_GPIO1_IO03__GPIO1_IO03   0x128b1    /* ENET_RST#  Open_Drain_Enabled*/
+        MX6UL_PAD_CSI_VSYNC__GPIO4_IO19    0x128b1    /* FACTORY_RESET#  InPut*/
 		>;
 	};
 
