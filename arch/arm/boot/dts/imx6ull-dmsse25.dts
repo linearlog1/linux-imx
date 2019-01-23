@@ -187,13 +187,22 @@ regulators {
 	pinctrl_hog_1: hoggrp-1 {
 		fsl,pins = <
 
-		    MX6UL_PAD_ENET2_TX_DATA1__GPIO2_IO12 0x128b1  /* UART_EN1 44 Open_Drain_Enabled pull_dwon_100M */
-		    MX6UL_PAD_ENET2_TX_EN__GPIO2_IO13  0x128b1    /* UART_EN2 45 Open_Drain_Enabled pull_dwon_100M */
-		    MX6UL_PAD_CSI_MCLK__GPIO4_IO17     0x1b0b1    /* BT_WAKE 113 pull_up_100M*/
-		    MX6UL_PAD_GPIO1_IO09__GPIO1_IO09   0x1b0b1    /* BT_RST# 9 pull_up_100M*/
-		    MX6UL_PAD_GPIO1_IO05__GPIO1_IO05   0x1b0b1    /* WL_REG_ON pull_up_100M*/
-		  	MX6UL_PAD_GPIO1_IO03__GPIO1_IO03   0x128b1    /* ENET_RST#  Open_Drain_Enabled*/
-        MX6UL_PAD_CSI_VSYNC__GPIO4_IO19    0x128b1    /* FACTORY_RESET#  InPut*/
+		MX6UL_PAD_ENET2_TX_DATA1__GPIO2_IO12 0x128b1  /* UART_EN1 44 Open_Drain_Enabled pull_dwon_100M */
+		MX6UL_PAD_ENET2_TX_EN__GPIO2_IO13  0x128b1    /* UART_EN2 45 Open_Drain_Enabled pull_dwon_100M */
+		MX6UL_PAD_CSI_MCLK__GPIO4_IO17     0x1b0b1    /* BT_WAKE 113 pull_up_100M*/
+		MX6UL_PAD_GPIO1_IO09__GPIO1_IO09   0x1b0b1    /* BT_RST# 9 pull_up_100M*/
+		MX6UL_PAD_GPIO1_IO05__GPIO1_IO05   0x1b0b1    /* WL_REG_ON pull_up_100M*/
+		MX6UL_PAD_GPIO1_IO03__GPIO1_IO03   0x128b1    /* ENET_RST#  Open_Drain_Enabled*/
+        	MX6UL_PAD_CSI_VSYNC__GPIO4_IO19    0x128b1    /* FACTORY_RESET#  InPut*/
+		>;
+	};
+
+	pinctrl_ecspi1: ecspi1grp {
+		fsl,pins = <
+		MX6UL_PAD_CSI_DATA07__ECSPI1_MISO   0x100b1
+		MX6UL_PAD_CSI_DATA06__ECSPI1_MOSI   0x100b1
+		MX6UL_PAD_CSI_DATA04__ECSPI1_SCLK   0x100b1
+		MX6UL_PAD_CSI_DATA05__GPIO4_IO26    0x1b0b0
 		>;
 	};
 
@@ -451,6 +460,32 @@ regulators {
                         fsl,pins = <
                                 MX6ULL_PAD_SNVS_TAMPER4__GPIO5_IO04   0x17059
                         >;
+                };
+        };
+};
+
+&ecspi1 {
+        fsl,spi-num-chipselects = <1>;
+        cs-gpios = <&gpio4 26 0>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_ecspi1>;
+        status = "okay";
+
+        flash: m25p80@0 {
+                #address-cells = <1>;
+                #size-cells = <1>;
+                compatible = "winbond,w25q32";
+                spi-max-frequency = <20000000>;
+                reg = <0>;
+
+                mtd0@00000000 {
+                        label = "bootloader";
+                        reg = <0x00000000 0x003C0000>;
+                };
+
+                mtd1@003C0000 {
+                        label = "config";
+                        reg = <0x003C0000 0x00040000>;
                 };
         };
 };

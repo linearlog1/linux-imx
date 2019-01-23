@@ -28,11 +28,51 @@
 #include <linux/mtd/spi-nor.h>
 
 #define	MAX_CMD_SIZE		6
+
+#define M25P80_SYSFS_BOARD_CONFIG
+
 struct m25p {
 	struct spi_device	*spi;
 	struct spi_nor		spi_nor;
+	struct mtd_info		mtd;
 	u8			command[MAX_CMD_SIZE];
 };
+
+#ifdef M25P80_SYSFS_BOARD_CONFIG
+#define M25P80_BOARD_CONFIG_SIZE       0x10000
+#define M25P80_CONFIG_STRING_LENGTH    128
+#define M25P80_CONFIG_PAGE_SIZE        0x100
+#define M25P80_CONFIG_MAC_SIZE         6
+#define M25P80_CONFIG_HOTKEY_SIZE      10
+
+
+/* ================================================================ *
+ * Causion:                                                         *
+ * All the new config should be added at the end of the structure   *
+ * Otherwise, the ambigous board config would be made               *
+ * Config for any MAC address should use *_mac as its name          *
+ * ================================================================ */
+ 
+const char *m25p80_config_table[] = {
+	"magic_number",
+	"serial_number",
+	"board_number",
+	"board_id",
+	"eth_mac",
+	NULL
+};
+
+struct m25p80_board_config {
+	int   cfg_num;
+	int   cfg_size;
+	char  *cfg_buf;
+	char  itmbuf[M25P80_CONFIG_STRING_LENGTH];
+};
+
+struct m25p80_board_config boardcfg;
+ 
+#endif
+
 
 static int m25p80_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 {
@@ -185,6 +225,412 @@ static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 	return ret;
 }
 
+#ifdef M25P80_SYSFS_BOARD_CONFIG
+static int m25p80_find_config(const char *name)
+{
+	int index = 0;
+
+	while (m25p80_config_table[index] != NULL)
+	{
+		if (!strcmp(name, m25p80_config_table[index]))
+			return index;
+		index++;
+	}
+
+	return -EINVAL;
+}
+
+static void m25p80_print_config_table(void)
+{
+	struct mtd_info *mtd = get_mtd_device_nm("config");
+	
+	int i, retlen = 0;
+	int num = boardcfg.cfg_num;
+	int size = boardcfg.cfg_size;
+	char *buffer = boardcfg.cfg_buf;
+	char *pch = NULL;
+	char *bufptr = NULL;
+	int cfglen = M25P80_CONFIG_STRING_LENGTH;
+	char dispbuf[M25P80_CONFIG_STRING_LENGTH] = {0};
+	
+	mtd->_read(mtd, 0x0, size, &retlen, buffer);
+
+	pr_info("====================================================\n");
+
+	pr_info("board config : num = %d, size = %d\n", num, size);
+	
+	for (i = 0; i < num; i++) {
+		memset(dispbuf, 0x0, cfglen);
+		bufptr = buffer + (i * cfglen);
+		
+		pch = strstr(m25p80_config_table[i], "_mac");
+		if(pch)
+			sprintf(dispbuf, "%02x:%02x:%02x:%02x:%02x:%02x",
+						bufptr[0], bufptr[1], bufptr[2], bufptr[3], bufptr[4], bufptr[5]);
+		else
+			strcpy(dispbuf, bufptr);
+
+		pr_info("boardcfg[%d] = %-16s, value = %s\n",
+						i, m25p80_config_table[i], dispbuf);
+	}
+
+	pr_info("====================================================\n");
+}
+
+static int m25p80_config_control(const char *name, char *srcbuf, bool write)
+{
+	int index = 0, retlen = 0, offset = 0;
+	int cfglen = M25P80_CONFIG_STRING_LENGTH;
+	int srclen = 0;
+
+	struct erase_info erase_part;
+
+	int size = boardcfg.cfg_size;
+	char *dstbuf = boardcfg.cfg_buf;
+	char *bufptr = NULL;
+	
+	struct mtd_info *mtd = get_mtd_device_nm("config");
+
+	if(!srcbuf)
+	{
+		pr_err("[%s] invalid read/write buffer\n", __func__);
+		return -EINVAL;
+	}
+
+	index = m25p80_find_config(name);
+	if (index < 0)
+	{
+		pr_err("[%s] invalid board config : %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	memset(dstbuf, 0x0, sizeof(dstbuf));
+
+	offset = (index * cfglen);
+	bufptr = dstbuf + offset;
+
+	mtd->_read(mtd, 0x0, size, &retlen, dstbuf);
+	
+	if(write)
+	{
+		if(strstr(name, "_mac") != NULL)
+			srclen = M25P80_CONFIG_MAC_SIZE;
+		else
+		{
+			srclen = strlen(srcbuf);
+			if(srcbuf[srclen - 1] == 0xA)
+				srclen--;
+		}
+
+		memset(bufptr, 0x0, cfglen);
+		
+		// Use memcpy instead of strcpy
+		// Prevent "00" MAC addr cause strlen shortage
+		memcpy(bufptr, srcbuf, srclen);
+
+		erase_part.addr = 0;
+		erase_part.len = mtd->size;
+		erase_part.callback = NULL;
+		erase_part.mtd = mtd;
+		mtd->_erase(mtd, &erase_part);
+		mtd->_write(mtd, 0x0, size, &retlen, dstbuf);
+		m25p80_print_config_table();
+	}
+	else
+	{
+		memcpy(srcbuf, bufptr, cfglen);
+	}
+
+	return 0;	
+}
+
+//=============================================================//
+// boardcfg read/write function
+//=============================================================//
+int m25p80_get_config(const char* name, char *buf)
+{
+	struct mtd_info *mtd = get_mtd_device_nm("config");
+	
+	int retlen = 0, index = 0, cfglen = 0;
+	int size = boardcfg.cfg_size;
+	char *buffer = boardcfg.cfg_buf;
+	char *bufptr = NULL;
+	char dstbuf[M25P80_CONFIG_STRING_LENGTH] = {0};
+
+	memset(dstbuf, 0x0, sizeof(dstbuf));
+	
+	mtd->_read(mtd, 0x0, size, &retlen, buffer);
+
+	index = m25p80_find_config(name);
+
+	bufptr = buffer + (M25P80_CONFIG_STRING_LENGTH * index);
+
+	if(strstr(name, "_mac") != NULL)
+	{
+		cfglen = (M25P80_CONFIG_MAC_SIZE * 3) - 1; //MAC addr length
+
+		sprintf(dstbuf, "%02x:%02x:%02x:%02x:%02x:%02x",
+					bufptr[0], bufptr[1], bufptr[2], bufptr[3], bufptr[4], bufptr[5]);
+	}
+	else if(strstr(name, "hotkey") != NULL)
+	{
+		cfglen = M25P80_CONFIG_HOTKEY_SIZE;
+
+		memcpy(dstbuf, bufptr, cfglen);
+	}
+	else
+	{
+		cfglen = strlen(bufptr);
+		
+		strcpy(dstbuf, bufptr);		
+	}
+
+	memcpy(buf, dstbuf, cfglen);
+
+	return 0;	
+}
+EXPORT_SYMBOL(m25p80_get_config);
+
+int m25p80_set_config(const char* name, char *buf)
+{
+	int ret;
+	char *pch = NULL;
+	char srcbuf[M25P80_CONFIG_STRING_LENGTH] = {0};
+	
+	memset(srcbuf, 0x0, sizeof(srcbuf));
+	
+	pch = strstr(name, "_mac");
+	if(strstr(name, "_mac") != NULL)
+	{
+		sscanf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
+			(unsigned int *)&srcbuf[0], (unsigned int *)&srcbuf[1], (unsigned int *)&srcbuf[2],
+			(unsigned int *)&srcbuf[3], (unsigned int *)&srcbuf[4], (unsigned int *)&srcbuf[5]);
+	}
+	else if(strstr(name, "hotkey") != NULL)
+		memcpy(srcbuf, buf, M25P80_CONFIG_HOTKEY_SIZE);
+	else
+		memcpy(srcbuf, buf, strlen(buf));
+
+	ret = m25p80_config_control(name, srcbuf, 1);
+	if (ret < 0)
+		pr_err("[%s] invalid board config item\n", __func__);
+	
+	return 0;	
+}
+EXPORT_SYMBOL(m25p80_set_config);
+//=============================================================//
+
+static int m25p80_board_config_init(struct device *dev)
+{
+	struct mtd_info *mtd = get_mtd_device_nm("config");
+	struct erase_info erase_part;
+	const char magic_str[] = "advantech";
+
+	int num = 0, size = 0, retlen = 0;
+	int cfglen = M25P80_CONFIG_STRING_LENGTH;
+	char *buffer = NULL;
+
+	// Obtain config item number, minus one since the last string is NULL
+	num = (sizeof(m25p80_config_table)/sizeof(char *)) - 1;
+	if(num < 0)
+	{
+		dev_err(dev, "[%s] get boardcfg size error", __func__);
+		return -EINVAL;
+	}
+
+	// Do the page aligment
+	size = (((num * M25P80_CONFIG_STRING_LENGTH) + (M25P80_CONFIG_PAGE_SIZE - 1)) 
+				/ M25P80_CONFIG_PAGE_SIZE) * M25P80_CONFIG_PAGE_SIZE; 
+
+	// Allocate memory buffer
+	buffer = (char *)kzalloc(size, GFP_KERNEL);
+	if(!buffer)
+	{
+		dev_err(dev, "[%s] get boardcfg size error", __func__);
+		return -ENOMEM;
+	}
+
+	// Read the first config item : magic_number
+	mtd->_read(mtd, 0x0, cfglen, &retlen, buffer);
+
+	// If magic number is mismatch, initialize the parition
+	if(strncmp(buffer, magic_str, strlen(magic_str)))
+	{
+		dev_info(dev, "[UNKNOWN] init config partition\n");
+		erase_part.addr = 0;
+		erase_part.len = mtd->size;
+		erase_part.callback = NULL;
+		erase_part.mtd = mtd;
+		mtd->_erase(mtd, &erase_part);
+
+		memset(buffer, 0x0, cfglen); 
+		strncpy(buffer, magic_str, strlen(magic_str));
+		mtd->_write(mtd, 0x0, size, &retlen, buffer);
+	}
+	else
+		dev_info(dev, "[MATCH] legal config partition\n");
+
+	// Assign value to the global structure : boardcfg
+	boardcfg.cfg_num = num;
+	boardcfg.cfg_size = size;
+	boardcfg.cfg_buf = buffer;
+	
+	// Print all the values of the config table
+	m25p80_print_config_table();
+
+	return 0;	
+}
+
+//Serial Number
+static ssize_t m25p80_serial_number_show(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int ret;
+
+	memset(buf, 0x0, M25P80_CONFIG_STRING_LENGTH);
+	
+	ret = m25p80_config_control("serial_number", buf, 0);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return strlen(buf);
+}
+
+static ssize_t m25p80_serial_number_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	
+	ret = m25p80_config_control("serial_number", (char *)buf, 1);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return count;
+}
+
+static DEVICE_ATTR(serial_number, 0644, m25p80_serial_number_show, m25p80_serial_number_store);
+
+//Board Number
+static ssize_t m25p80_board_number_show(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int ret;
+
+	memset(buf, 0x0, M25P80_CONFIG_STRING_LENGTH);
+	
+	ret = m25p80_config_control("board_number", buf, 0);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return strlen(buf);
+}
+
+static ssize_t m25p80_board_number_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	
+	ret = m25p80_config_control("board_number", (char *)buf, 1);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return count;
+}
+
+static DEVICE_ATTR(board_number, 0644, m25p80_board_number_show, m25p80_board_number_store);
+
+// Board ID
+static ssize_t m25p80_board_id_show(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int ret;
+
+	memset(buf, 0x0, M25P80_CONFIG_STRING_LENGTH);
+	
+	ret = m25p80_config_control("board_id", buf, 0);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return strlen(buf);
+}
+
+static ssize_t m25p80_board_id_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	
+	ret = m25p80_config_control("board_id", (char *)buf, 1);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return count;
+}
+
+static DEVICE_ATTR(board_id, 0644, m25p80_board_id_show, m25p80_board_id_store);
+
+//Ethernet MAC address
+static ssize_t m25p80_eth_mac_show(struct device *dev, 
+	struct device_attribute *attr, char *buf)
+{
+	int ret, maclen;
+	char macbuf[M25P80_CONFIG_STRING_LENGTH] = {0};
+	
+
+	memset(buf, 0x0, M25P80_CONFIG_STRING_LENGTH);
+	
+	ret = m25p80_config_control("eth_mac", macbuf, 0);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
+			macbuf[0], macbuf[1], macbuf[2], macbuf[3], macbuf[4], macbuf[5]);
+
+	// char * 2 + ':'
+	maclen = (M25P80_CONFIG_MAC_SIZE * 3) - 1;
+
+	return maclen;
+}
+
+static ssize_t m25p80_eth_mac_store(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	char macbuf[M25P80_CONFIG_STRING_LENGTH] = {0};
+
+	sscanf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
+			(unsigned int *)&macbuf[0], (unsigned int *)&macbuf[1], (unsigned int *)&macbuf[2],
+			(unsigned int *)&macbuf[3], (unsigned int *)&macbuf[4], (unsigned int *)&macbuf[5]);
+
+	ret = m25p80_config_control("eth_mac", macbuf, 1);
+
+	if (ret < 0)
+		dev_err(dev, "[%s] invalid board config item\n", __func__);
+
+	return count;
+}
+
+static DEVICE_ATTR(eth_mac, 0644, m25p80_eth_mac_show, m25p80_eth_mac_store);
+
+static struct attribute *m25p80_attributes[] = {
+	&dev_attr_serial_number.attr,
+	&dev_attr_board_number.attr,
+	&dev_attr_board_id.attr,
+	&dev_attr_eth_mac.attr,
+	NULL
+};
+
+static const struct attribute_group m25p80_attr_group = {
+	.attrs = m25p80_attributes,
+};
+#endif
+
 /*
  * board specific setup should have ensured the SPI clock used here
  * matches what the READ command supports, at least until this driver
@@ -244,8 +690,30 @@ static int m25p_probe(struct spi_device *spi)
 	if (ret)
 		return ret;
 
-	return mtd_device_register(&nor->mtd, data ? data->parts : NULL,
+	ret = mtd_device_register(&nor->mtd, data ? data->parts : NULL,
 				   data ? data->nr_parts : 0);
+				   
+	if (ret < 0) {
+		dev_err(&spi->dev, "mtd_device_register failed : %d\n", ret);
+		return ret;
+	}
+#ifdef M25P80_SYSFS_BOARD_CONFIG
+	ret = m25p80_board_config_init(&spi->dev);
+	
+	if (ret) {
+		dev_err(&spi->dev, "board config init error : %d\n", ret);
+		return ret;
+	}	
+
+	ret = sysfs_create_group(&spi->dev.kobj, &m25p80_attr_group);
+	
+	if (ret) {
+		dev_err(&spi->dev, "create sysfs group error\n");
+		return ret;
+	}
+#endif
+
+	return ret;
 }
 
 

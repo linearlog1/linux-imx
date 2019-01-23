@@ -72,6 +72,8 @@
 
 #include "fec.h"
 
+#define M25P80_SYSFS_BOARD_CONFIG
+
 static void set_multicast_list(struct net_device *ndev);
 static void fec_enet_itr_coal_init(struct net_device *ndev);
 
@@ -1664,6 +1666,9 @@ static int fec_enet_rx_napi(struct napi_struct *napi, int budget)
 	return pkts;
 }
 
+#ifdef M25P80_SYSFS_BOARD_CONFIG
+extern int m25p80_get_config(const char* name, char *buf);
+#endif
 /* ------------------------------------------------------------------------- */
 static void fec_get_mac(struct net_device *ndev)
 {
@@ -1715,6 +1720,28 @@ static void fec_get_mac(struct net_device *ndev)
 		iap = &tmpaddr[0];
 	}
 
+#ifdef M25P80_SYSFS_BOARD_CONFIG
+	/*
+	 * 4.5) Obtain MAC address from SPI-NOR flash
+	 */
+	if (!is_valid_ether_addr(iap)) {
+		unsigned char macbuf[64];
+		
+		memset(macbuf,  0, sizeof(macbuf));
+		memset(tmpaddr, 0, sizeof(tmpaddr));
+	
+		m25p80_get_config("eth_mac", macbuf);
+	
+		sscanf(macbuf, "%02x:%02x:%02x:%02x:%02x:%02x",
+			(unsigned int *)&tmpaddr[0], (unsigned int *)&tmpaddr[1], (unsigned int *)&tmpaddr[2],
+			(unsigned int *)&tmpaddr[3], (unsigned int *)&tmpaddr[4], (unsigned int *)&tmpaddr[5]);
+	
+		iap = &tmpaddr[0];
+		
+		printk(KERN_INFO "[%s] MAC address from SPI-NOR flash : %pM\n", __func__, iap);
+	}	
+#endif
+	
 	/*
 	 * 5) random mac address
 	 */
